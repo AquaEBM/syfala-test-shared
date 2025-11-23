@@ -11,6 +11,7 @@ pub struct Interleaver<Spec> {
 unsafe impl<Spec> Send for Interleaver<Spec> {}
 
 impl<Spec> Interleaver<Spec> {
+    #[inline(always)]
     pub fn new(ports: impl IntoIterator<Item = jack::Port<Spec>>) -> Box<Self> {
         let boxed_slice = Box::from_iter(iter::zip(
             ports,
@@ -21,11 +22,13 @@ impl<Spec> Interleaver<Spec> {
         unsafe { mem::transmute(boxed_slice) }
     }
 
+    #[inline(always)]
     pub fn from_mut(slice: &mut [(jack::Port<Spec>, ptr::NonNull<f32>)]) -> &mut Self {
         // SAFETY: We are a `#[repr(transparent)]` struct, lifetimes are well-defined
         unsafe { mem::transmute(slice) }
     }
 
+    #[inline(always)]
     pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
         self.ptrs.split_at_mut_checked(mid).map(|(a, b)| (Self::from_mut(a), Self::from_mut(b)))
     }
@@ -44,6 +47,7 @@ pub trait ToJackPointer: private::Sealed {
 }
 
 impl ToJackPointer for jack::AudioIn {
+    #[inline(always)]
     fn to_jack_buf_ptr(port: &mut jack::Port<Self>, scope: &jack::ProcessScope) -> ptr::NonNull<f32>
     where
         Self: Sized,
@@ -53,6 +57,7 @@ impl ToJackPointer for jack::AudioIn {
 }
 
 impl ToJackPointer for jack::AudioOut {
+    #[inline(always)]
     fn to_jack_buf_ptr(port: &mut jack::Port<Self>, scope: &jack::ProcessScope) -> ptr::NonNull<f32>
     where
         Self: Sized,
@@ -69,6 +74,7 @@ pub trait FromJackPointer: private::Sealed {
 impl FromJackPointer for jack::AudioIn {
     type Output<'a> = &'a f32;
 
+    #[inline(always)]
     unsafe fn get_ref<'a>(ptr: ptr::NonNull<f32>) -> Self::Output<'a> {
         unsafe { ptr.as_ref() }
     }
@@ -77,12 +83,14 @@ impl FromJackPointer for jack::AudioIn {
 impl FromJackPointer for jack::AudioOut {
     type Output<'a> = &'a mut f32;
 
+    #[inline(always)]
     unsafe fn get_ref<'a>(mut ptr: ptr::NonNull<f32>) -> Self::Output<'a> {
         unsafe { ptr.as_mut() }
     }
 }
 
 impl<Spec: ToJackPointer> Interleaver<Spec> {
+    #[inline(always)]
     pub fn interleave(&mut self, process_scope: &jack::ProcessScope) -> Interleaved<'_, Spec> {
         // write the pointers into our list
 
@@ -113,6 +121,7 @@ pub struct Interleaved<'a, Spec> {
 impl<'a, Spec: FromJackPointer> Iterator for Interleaved<'a, Spec> {
     type Item = Spec::Output<'a>;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining_frames == 0 {
             return None;

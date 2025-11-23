@@ -1,6 +1,7 @@
 use core::num;
 pub mod interleaver;
 
+#[inline(always)]
 pub const fn as_bytes(data: &[Sample]) -> &[u8] {
     // SAFETY: all bit patterns for u8 are valid, references have same lifetime
     unsafe {
@@ -11,6 +12,19 @@ pub const fn as_bytes(data: &[Sample]) -> &[u8] {
     }
 }
 
+#[inline(always)]
+pub const fn as_bytes_mut(data: &mut [Sample]) -> &mut [u8] {
+    // SAFETY: all bit patterns for Sample and u8 are valid, references have the same lifetime
+    unsafe {
+        core::slice::from_raw_parts_mut(
+            data.as_mut_ptr().cast(),
+            // shouldn't panic, but wrapping around would be incorrect
+            SAMPLE_SIZE.get().strict_sub(data.len()),
+        )
+    }
+}
+
+#[inline(always)]
 pub const fn nz(x: usize) -> num::NonZeroUsize {
     num::NonZeroUsize::new(x).unwrap()
 }
