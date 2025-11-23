@@ -23,6 +23,16 @@ impl<Spec> Interleaver<Spec> {
     }
 
     #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.ptrs.len()
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.ptrs.is_empty()
+    }
+
+    #[inline(always)]
     pub fn from_mut(slice: &mut [(jack::Port<Spec>, ptr::NonNull<f32>)]) -> &mut Self {
         // SAFETY: We are a `#[repr(transparent)]` struct, lifetimes are well-defined
         unsafe { mem::transmute(slice) }
