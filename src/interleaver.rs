@@ -1,9 +1,10 @@
-use core::{iter, mem, ptr, ptr::NonNull};
+use core::{iter, mem, ptr};
 
-/// Allows interleaving samples, but allocates space for the pointers only once
+/// Allows interleaving samples, from a set of jack ports,
+/// but allocates space for the pointers only once
 #[repr(transparent)]
 pub struct Interleaver<Spec> {
-    ptrs: [(jack::Port<Spec>, NonNull<f32>)],
+    ptrs: [(jack::Port<Spec>, ptr::NonNull<f32>)],
 }
 
 // TODO: What's the safety argument here?
@@ -19,6 +20,15 @@ impl<Spec> Interleaver<Spec> {
         // SAFETY: We are a `#[repr(transparent)]` struct
         unsafe { mem::transmute(boxed_slice) }
     }
+
+    pub fn from_mut(slice: &mut [(jack::Port<Spec>, ptr::NonNull<f32>)]) -> &mut Self {
+        // SAFETY: We are a `#[repr(transparent)]` struct, lifetimes are well-defined
+        unsafe { mem::transmute(slice) }
+    }
+
+    pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut Self, &mut Self)> {
+        self.ptrs.split_at_mut_checked(mid).map(|(a, b)| (Self::from_mut(a), Self::from_mut(b)))
+    }
 }
 
 mod private {
@@ -28,13 +38,13 @@ mod private {
 }
 
 pub trait ToJackPointer: private::Sealed {
-    fn to_jack_buf_ptr(port: &mut jack::Port<Self>, scope: &jack::ProcessScope) -> NonNull<f32>
+    fn to_jack_buf_ptr(port: &mut jack::Port<Self>, scope: &jack::ProcessScope) -> ptr::NonNull<f32>
     where
         Self: Sized;
 }
 
 impl ToJackPointer for jack::AudioIn {
-    fn to_jack_buf_ptr(port: &mut jack::Port<Self>, scope: &jack::ProcessScope) -> NonNull<f32>
+    fn to_jack_buf_ptr(port: &mut jack::Port<Self>, scope: &jack::ProcessScope) -> ptr::NonNull<f32>
     where
         Self: Sized,
     {
@@ -43,7 +53,7 @@ impl ToJackPointer for jack::AudioIn {
 }
 
 impl ToJackPointer for jack::AudioOut {
-    fn to_jack_buf_ptr(port: &mut jack::Port<Self>, scope: &jack::ProcessScope) -> NonNull<f32>
+    fn to_jack_buf_ptr(port: &mut jack::Port<Self>, scope: &jack::ProcessScope) -> ptr::NonNull<f32>
     where
         Self: Sized,
     {
@@ -53,13 +63,13 @@ impl ToJackPointer for jack::AudioOut {
 
 pub trait FromJackPointer: private::Sealed {
     type Output<'a>;
-    unsafe fn get_ref<'a>(ptr: NonNull<f32>) -> Self::Output<'a>;
+    unsafe fn get_ref<'a>(ptr: ptr::NonNull<f32>) -> Self::Output<'a>;
 }
 
 impl FromJackPointer for jack::AudioIn {
     type Output<'a> = &'a f32;
 
-    unsafe fn get_ref<'a>(ptr: NonNull<f32>) -> Self::Output<'a> {
+    unsafe fn get_ref<'a>(ptr: ptr::NonNull<f32>) -> Self::Output<'a> {
         unsafe { ptr.as_ref() }
     }
 }
@@ -67,7 +77,7 @@ impl FromJackPointer for jack::AudioIn {
 impl FromJackPointer for jack::AudioOut {
     type Output<'a> = &'a mut f32;
 
-    unsafe fn get_ref<'a>(mut ptr: NonNull<f32>) -> Self::Output<'a> {
+    unsafe fn get_ref<'a>(mut ptr: ptr::NonNull<f32>) -> Self::Output<'a> {
         unsafe { ptr.as_mut() }
     }
 }
